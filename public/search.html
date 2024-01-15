@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Results</title>
+    <link rel="stylesheet" type="text/css" href="../results.css" />
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.3.22/dist/vuetify.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@5.x/css/materialdesignicons.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div id="app" v-cloak>
+        <div v-if="error">
+            <!-- Back button on error -->
+            <v-btn class="backButton" color="#424242" variant="tonal" icon="mdi-chevron-left" size="large"
+                @click="GoBack"></v-btn>
+            <h1> {{city}} </h1>
+        </div>
+
+        <v-slide-x-transition>
+            <div v-if="loaded">
+                <!-- Back button on success -->
+                <v-btn class="backButton" color="#424242" variant="tonal" icon="mdi-chevron-left" size="large"
+                    @click="GoBack"></v-btn>
+                <h1> {{city}}, {{country}} </h1>
+            </div>
+        </v-slide-x-transition>
+
+        <v-slide-x-reverse-transition>
+            <div v-if="loaded">
+
+                <!-- Average details for the next 5 days -->
+                <div class="outline">
+                    <h2 v-if="willRain"> It will rain within the next 5 days <v-icon icon="mdi-weather-rainy"> </v-icon>
+                    </h2>
+                    <p> Average temp over five days: {{averageTemp}}°C</p>
+
+                    <p v-if="averageTemp < 13">
+                        Make sure to pack for cold weather
+                        <v-icon icon="mdi-snowflake-alert"> </v-icon>
+
+                    </p>
+                    <p v-else-if="averageTemp >= 13 && averageTemp <= 23">
+                        Make sure to pack for mild weather
+                        <v-icon icon="mdi-thermometer"> </v-icon>
+                    </p>
+                    <p v-else> Make sure to pack for hot weather
+                        <v-icon icon="mdi-weather-sunny-alert"> </v-icon>
+                    </p>
+                </div>
+            </div>
+        </v-slide-x-reverse-transition>
+
+        <div v-if="loaded">
+            <!-- Summary table -->
+            <div class="table">
+                <!-- For loop to display data for each of the 5 days -->
+                <div v-for="index in 5" class="grid">
+                    <v-hover>
+                        <!-- Elevation animation for each card -->
+                        <template v-slot:default="{ isHovering, props }">
+
+                            <!-- Card that holds data regarding the day -->
+                            <v-card variant="tonal" color="#f5d400" width="250px" :elevation="isHovering ? 16 : 2"
+                                v-bind="props">
+
+                                <v-card-item :title="daysOfWeek[index-1]">
+                                    <template v-slot:subtitle>
+                                        {{dates[index-1]}}
+                                    </template>
+
+                                    <v-divider></v-divider>
+                                    <v-card-text>
+                                        <v-row class="temp" no-gutters>
+                                            {{tempAvgs[index-1]}}°C
+                                        </v-row>
+                                    </v-card-text>
+                                    <v-card-text subtitle="hello">
+                                        Min: {{minTemps[index-1]}}°C &nbsp Max: {{maxTemps[index-1]}}°C
+                                    </v-card-text>
+
+                                    <v-list-item density="compact" prepend-icon="mdi-weather-windy">
+                                        <v-list-item-subtitle>{{windSpeedAvgs[index-1]}} km/h</v-list-item-subtitle>
+                                    </v-list-item>
+
+                                    <v-list-item density="compact" prepend-icon="mdi-weather-pouring">
+                                        <v-list-item-subtitle>{{rainfallAvgs[index-1]}} mm</v-list-item-subtitle>
+                                    </v-list-item>
+                                </v-card-item>
+
+                                <!-- Expanding animation for viewing warnings on card -->
+                                <v-expand-transition>
+                                    <div v-if="expand[index-1]" class="expansionText">
+                                        <div v-if="wearMaskArray[index-1]">
+                                            WARNING: PM2.5 LEVELS ARE HIGH
+                                            <br>
+                                            Please wear a mask.
+                                        </div>
+                                        <div v-else>
+                                            No warnings for today :)
+                                        </div>
+                                    </div>
+                                </v-expand-transition>
+
+                                <v-card-actions>
+                                    <v-btn @click="expand[index-1] = !expand[index-1]">
+                                        {{ wearMaskArray[index-1] ? 'PM2.5 WARNING' : 'NO WARNINGS' }}
+                                    </v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </template>
+                    </v-hover>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.3.22/dist/vuetify.min.js"></script>
+    <script>
+        const { createApp } = Vue;
+        const { createVuetify } = Vuetify;
+
+        const vuetify = createVuetify();
+
+        createApp({
+            el: '#app',
+            data() {
+                // Initialising variables
+                return {
+                    airPollutionData: undefined,
+                    averageTemp: "",
+                    city: "Loading Data...",
+                    country: "",
+                    dates: [],
+                    daysOfWeek: [],
+                    error: false,
+                    expand: Array(5).fill(false),
+                    loaded: false,
+                    maxTemps: Array(6).fill(-1000),
+                    minTemps: Array(6).fill(1000),
+                    rainfallAvgs: Array(6).fill(0),
+                    tempAvgs: Array(6).fill(0),
+                    wearMaskArray: Array(6).fill(false),
+                    weatherData: undefined,
+                    windSpeedAvgs: Array(6).fill(0),
+                    willRain: false,
+                }
+            },
+            methods: {
+                // Initialising functions
+                GetCity: getCity,
+                GatherInfo: gatherInfo,
+                GetSummary: getSummary,
+                GoBack: goBack
+            },
+            // Before mounting, get location data
+            beforeMount() {
+                this.GetCity()
+            }
+        }).use(vuetify)
+            .mount('#app');
+
+        // Function responsible for getting weather data for location
+        async function getCity() {
+            try {
+                const path = window.location.href;
+
+                // Use last string of the URL as the city
+                city = path.substring(path.lastIndexOf('/') + 1);
+                console.log(`getCity Called with ${city}`);
+                
+                // Wait for result
+                const prom = await fetch("results/" + city);
+                const promJson = await prom.json();
+
+                // Interpret results
+                this.weatherData = promJson.wData;
+                this.airPollutionData = promJson.apData;
+                console.log(this.weatherData);
+                console.log(this.airPollutionData);
+                this.city = this.weatherData.city.name;
+                this.country = this.weatherData.city.country;
+
+                // Calculate results for summary
+                await this.GatherInfo();
+                this.loaded = true;
+            } catch (error) {
+                // If an error was caught from the request, print it to console and display
+                // it for user.
+                console.log(error);
+                this.city = "ERROR: LOCATION NOT FOUND, PLEASE CHECK SPELLING AND TRY AGAIN.";
+                this.error = true;
+            }
+
+        }
+
+        // Function for calculating optimal results to display for user from data received
+        // from the weather API.
+        function gatherInfo() {
+            let totalTemp = 0;
+            for (i = 0; i < this.weatherData.list.length; i++) {
+                const weatherPeriod = this.weatherData.list[i];
+                totalTemp += parseFloat(weatherPeriod.main.temp);
+
+                // Calculates whether it will rain within the next five days 
+                for (j = 0; j < weatherPeriod.weather.length; j++) {
+                    if (weatherPeriod.weather[j].main === "Rain") {
+                        this.willRain = true;
+                    }
+                }
+            }
+
+            // Caluculates average temperature over the next 5 days
+            this.averageTemp = Math.round(totalTemp / this.weatherData.list.length);
+
+            // Function call to calculates values to display in the summary table
+            this.GetSummary();
+        }
+
+        // Function which calculates values to display in the summary table
+        function getSummary() {
+            let currDate = "";
+            let dayIndex = -1;
+            let dayEntryNum = 0;
+            let dayEntries = new Array(5);
+
+            // Loop to go through all the 3-hour weather periods that were received from the weather API
+            for (i = 0; i < this.weatherData.list.length; i++) {
+                const weatherPeriod = this.weatherData.list[i];
+                
+                // Converting UNIX timestamps to a more readable form
+                const [dayOfWeek, dateString] = convertDateToString(weatherPeriod.dt);
+
+                // If moving onto another day, move to a new position in the day arrays
+                if (currDate != dateString) {
+                    dayIndex += 1;
+                    dayEntryNum = 1;
+                    currDate = dateString;
+                }
+                else {
+                    dayEntryNum += 1;
+                }
+
+                // Calculate the day temperature minimum
+                if (this.weatherData.list[i].main.temp_min < this.minTemps[dayIndex]) {
+                    this.minTemps[dayIndex] = this.weatherData.list[i].main.temp_min;
+                }
+
+                // Calculate the day temperature maximum
+                if (this.weatherData.list[i].main.temp_max > this.maxTemps[dayIndex]) {
+                    this.maxTemps[dayIndex] = this.weatherData.list[i].main.temp_max;
+                }
+
+                // Calculating temperature average for the specific days
+                this.tempAvgs[dayIndex] += this.weatherData.list[i].main.temp;
+
+                // Calculating rainfall for each individual day
+                if (this.weatherData.list[i].weather[0].main === "Rain") {
+                    this.rainfallAvgs[dayIndex] += parseFloat(this.weatherData.list[i].rain["3h"]);
+                }
+
+                // Used for calculating average wind speed
+                this.windSpeedAvgs[dayIndex] += this.weatherData.list[i].wind.speed;
+
+                dayEntries[dayIndex] = dayEntryNum;
+                this.dates[dayIndex] = dateString;
+                this.daysOfWeek[dayIndex] = dayOfWeek;
+            }
+
+            currDate = "";
+            dayIndex = -1;
+
+            // Loop to go through all the 1-hour pollution periods that were received from the weather API
+            for (i = 0; i < this.airPollutionData.list.length; i++) {
+                const apPeriod = this.airPollutionData.list[i];
+                // Converting UNIX timestamps to a more readable form
+                const [dayOfWeek, dateString] = convertDateToString(apPeriod.dt);
+
+                // If moving onto another day, move to a new position in the day arrays
+                if (currDate != dateString) {
+                    dayIndex += 1;
+                    dayEntryNum = 1;
+                    currDate = dateString;
+                }
+                else {
+                    dayEntryNum += 1;
+                }
+
+                // If pm2.5 level is more than 10, raise the warning for that day
+                if (apPeriod.components.pm2_5 > 10) {
+                    this.wearMaskArray[dayIndex] = true;
+                }
+            }
+
+            // Cut all arrays to size of 5
+            this.tempAvgs = this.tempAvgs.slice(0, 5);
+            this.windSpeedAvgs = this.windSpeedAvgs.slice(0, 5);
+            this.rainfallAvgs = this.rainfallAvgs.slice(0, 5);
+            this.maxTemps = this.maxTemps.slice(0, 5);
+            this.minTemps = this.minTemps.slice(0, 5);
+            this.wearMaskArray = this.wearMaskArray.slice(0, 5);
+            dayEntries = dayEntries.slice(0, 5);
+
+            for (i = 0; i < this.tempAvgs.length; i++) {
+                // Calculate average values
+                this.tempAvgs[i] = Math.round(this.tempAvgs[i] / dayEntries[i]);
+                this.rainfallAvgs[i] = this.rainfallAvgs[i].toFixed(2);
+
+                // Change wind speed averages from m/s to km/h
+                this.windSpeedAvgs[i] = Math.round((this.windSpeedAvgs[i] / dayEntries[i]) * 3.6);
+
+                // Round floating point values
+                this.minTemps[i] = Math.round(this.minTemps[i]);
+                this.maxTemps[i] = Math.round(this.maxTemps[i]);
+            }
+        }
+
+        // Function to convert UNIX timestamp to more readable form
+        // Returns ["Day of the week (word)" in the form of a string, "Day Month" in the form of a string]
+        function convertDateToString(unixDate) {
+            let date = new Date(unixDate * 1000);
+            let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+            let months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            let dayOfWeek = days[date.getDay()];
+            let dateString = date.getDate() + " " + months[date.getMonth()];
+            return [dayOfWeek, dateString];
+        }
+
+        // Function to go back to webpage when the custom back button is pressed
+        function goBack() {
+            history.back();
+        }
+    </script>
+</body>
+</html>

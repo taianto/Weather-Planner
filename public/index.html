@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Homepage</title>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.3.22/dist/vuetify.min.css" rel="stylesheet" />
+</head>
+
+<body>
+    <!-- v-cloak hides variables and text until they are loaded fully -->
+    <div id="app" v-cloak>
+
+        <!-- Slide transition coming in from the left -->
+        <v-slide-x-transition>
+            <div v-if="start">
+                <h1> WEATHER</h1>
+            </div>
+        </v-slide-x-transition>
+
+        <!-- Slide transition coming in from the right -->
+        <v-slide-x-reverse-transition>
+            <div class="outline" v-if="start">
+                <!-- Textbox for input -->
+                <v-text-field rounded label="CITY" variant="solo-inverted" v-model="city" v-on:keyup.enter="GetCity"
+                    class="text">
+                </v-text-field>
+            </div>
+        </v-slide-x-reverse-transition>
+
+
+        <v-expand-x-transition>
+            <!-- Show if items in history exist -->
+            <div v-if="history.length>0 && start" class="history">
+                <h1 class="historyHeading"> HISTORY </h1>
+
+                <!-- History section -->
+                <div v-for="search in history.slice().reverse()">
+                    <!-- History entries displayed in a for-loop -->
+                    <a :href="search.url" v-on:click="HistoryClicked(search.city, $event)">
+                        <v-btn block class="cityButton" variant="outlined" color="#f5d400">
+                            {{search.city}}
+                        </v-btn>
+                    </a>
+                </div>
+
+                <!-- Clear history button -->
+                <v-btn variant="tonal" v-on:click="ClearHistory" class="clearBtn"> Clear History </v-btn>
+            </div>
+        </v-expand-x-transition>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.3.22/dist/vuetify.min.js"></script>
+
+    <script>
+        const { createApp } = Vue;
+        const { createVuetify } = Vuetify;
+
+        const vuetify = createVuetify();
+
+        createApp({
+            data() {
+                // Initialise variables
+                return {
+                    city: "",
+                    count: 0,
+                    history: [],
+                    start: false
+                };
+            },
+            // Initialise functions
+            methods: {
+                GetCity: getCity,
+                ClearHistory: clearHistory,
+                CheckDuplicates: checkDuplicate,
+                HistoryClicked: historyClicked
+            },
+            // Upon website creation for the first time, retrieve history from local storage
+            created() {
+                if (localStorage.getItem('history') != null) {
+                    // History is saved as a string, and then parsed into a JSON from a string
+                    this.history = JSON.parse(localStorage.getItem('history'));
+                }
+            },
+            // For animation purposes, when app is mounted set variable to true
+            mounted() {
+                this.start = true;
+            }
+        }).use(vuetify)
+            .mount('#app');
+
+        function getCity() {
+            // Only execute if input isn't empty
+            if (this.city != "") {
+                this.start = false;
+                console.log("getCity called " + this.city);
+
+                //Switch route and page to 'search/:city'
+                const url = window.location.href + "search/" + this.city;
+                window.location.href = url;
+
+                // For history purposes, check if location was already inputted
+                const duplicate = this.CheckDuplicates(this.city)
+                // If duplicate is found, remove entry from the history list
+                if (duplicate != -1) {
+                    this.history.splice(duplicate, 1);
+                }
+                // Push the city and its corresponding URL to the history list 
+                this.history.push({ city: this.city, url: url });
+
+                // Reset city variable
+                this.city = "";
+
+                // Save history in local storage
+                localStorage.setItem('history', JSON.stringify(this.history));
+            }
+        }
+
+        // Clears saved history from local storage and from array also
+        function clearHistory() {
+            localStorage.clear();
+            this.history = [];
+        }
+
+        // Cycles through history looking for duplicates
+        // Returns the index of duplicate if exists
+        function checkDuplicate(city) {
+            for (i = 0; i < this.history.length; i++) {
+                const cityString = this.history[i].city;
+
+                //Convert both to uppercase to ignore case
+                if (city.toUpperCase() == cityString.toUpperCase()) return i;
+            }
+            return -1;
+        }
+
+        // Seperate function for clicking history results
+        // Needed to seperate because the this.city variable comes from the search
+        // bar and search bar can potentially be empty.
+        function historyClicked(city) {
+            this.start = false;
+
+
+            const duplicate = this.CheckDuplicates(city);
+            this.history.splice(duplicate, 1);
+
+            //Prevent default behaviour of clicking a "href" link
+            event.preventDefault();
+            
+            const url = window.location.href + "search/" + city;
+            this.history.push({ city: city, url: url });
+
+            window.location.href = url;
+            this.city = "";
+
+            // setItem stores as a string, so need to stringify the array
+            localStorage.setItem('history', JSON.stringify(this.history));
+        }
+    </script>
+</body>
+
+</html>
